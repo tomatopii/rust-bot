@@ -38,6 +38,7 @@ export type HubEventInput = DistributiveOmit<HubEvent, 'seq' | 'time'>;
 /** 画面の上部に出す現在の状態 */
 export type StatusSnapshot = Readonly<{ fcm: FcmStatus; lastNotificationAt: string | undefined; startedAt: string }>;
 
+/** ログ・通知履歴・接続状態の置き場。画面へはここを通してだけ流す */
 export type EventHub = Readonly<{
     /** seq と time を付けて保持・配信し、出来上がったイベントを返す */
     publish(event: HubEventInput): HubEvent;
@@ -49,6 +50,7 @@ export type EventHub = Readonly<{
     status(): StatusSnapshot;
 }>;
 
+/** 保持件数と時刻の取り方。省略すると既定値を使う */
 export type EventHubOptions = Readonly<{ maxLogs?: number; maxNotifications?: number; now?: () => Date }>;
 
 const DEFAULT_MAX_LOGS = 500;

@@ -6,6 +6,7 @@ import { alarmRouteFor, alarmTitleKey, rememberAlarmTitle, type SettingsStore } 
 import { rememberAlarmFired, rememberEntity, rememberServer, serverKey, type State } from './state.js';
 import type { EventHub, NotificationOutcome } from './web/eventHub.js';
 
+/** 通知 1 件を処理するのに要るもの。テストではすべて差し替える */
 export type RelayDeps = Readonly<{
     config: Config;
     log: Logger;
@@ -40,7 +41,7 @@ function alarmServerLabel(notification: AlarmNotification, state: State): string
     return state.servers[key]?.name.trim() || key;
 }
 
-function remember(deps: RelayDeps, entry: HistoryEntry): void {
+function publishHistory(deps: RelayDeps, entry: HistoryEntry): void {
     deps.hub.publish({ type: 'notification', ...entry });
 }
 
@@ -58,13 +59,19 @@ async function post(notification: PostableNotification, mention: string, state: 
     }
 }
 
-/** 転送する設定の通知を投稿し、結果を履歴に残す */
-async function forward(notification: PostableNotification, mention: string, state: State, deps: RelayDeps): Promise<void> {
+/** 転送する設定の通知を投稿し、結果を履歴に残す。履歴の題名は画面の振り分け一覧と突き合わせられるよう呼び出し側が決める */
+async function forward(
+    notification: PostableNotification,
+    mention: string,
+    historyTitle: string,
+    state: State,
+    deps: RelayDeps,
+): Promise<void> {
     const server = notification.kind === 'alarm' ? alarmServerLabel(notification, state) : undefined;
     const result = await post(notification, mention, state, deps);
-    remember(deps, {
+    publishHistory(deps, {
         kind: notification.kind,
-        title: notification.title,
+        title: historyTitle,
         message: notification.message,
         server,
         outcome: result.ok ? 'posted' : 'failed',
@@ -82,7 +89,7 @@ async function relayAlarm(notification: AlarmNotification, state: State, deps: R
 
     switch (route.mode) {
         case 'discord':
-            await forward(notification, route.mention ?? deps.config.ALARM_MENTION, state, deps);
+            await forward(notification, route.mention ?? deps.config.ALARM_MENTION, titleKey, state, deps);
             return next;
         case 'log':
             deps.log.info(`アラーム（ログのみ）: ${titleKey}`);
@@ -93,7 +100,7 @@ async function relayAlarm(notification: AlarmNotification, state: State, deps: R
         default:
             return assertUnreachable(route.mode);
     }
-    remember(deps, {
+    publishHistory(deps, {
         kind: 'alarm',
         title: titleKey,
         message: notification.message,
@@ -115,7 +122,7 @@ export async function relayNotification(appData: unknown, state: State, deps: Re
     switch (notification.kind) {
         case 'pairing-server':
             deps.log.info(`サーバーとペアリングされました: ${notification.serverName} (${serverKey(notification.server)})`);
-            remember(deps, {
+            publishHistory(deps, {
                 kind: notification.kind,
                 title: notification.serverName,
                 message: serverKey(notification.server),
@@ -127,7 +134,7 @@ export async function relayNotification(appData: unknown, state: State, deps: Re
             deps.log.info(
                 `デバイスとペアリングされました: ${notification.entityName} (ID ${notification.entityId}) @ ${notification.serverName}`,
             );
-            remember(deps, {
+            publishHistory(deps, {
                 kind: notification.kind,
                 title: notification.entityName,
                 message: notification.serverName,
@@ -142,12 +149,12 @@ export async function relayNotification(appData: unknown, state: State, deps: Re
         case 'team-login': {
             const forwarding = notification.kind === 'death' ? deps.config.FORWARD_DEATH : deps.config.FORWARD_TEAM_LOGIN;
             if (forwarding) {
-                await forward(notification, '', state, deps);
+                await forward(notification, '', notification.title, state, deps);
                 return state;
             }
             const label = notification.kind === 'death' ? '死亡通知' : 'ログイン通知';
             deps.log.debug(`${label}は転送しない設定です: ${notification.title}`);
-            remember(deps, {
+            publishHistory(deps, {
                 kind: notification.kind,
                 title: notification.title,
                 message: notification.message,
@@ -160,7 +167,7 @@ export async function relayNotification(appData: unknown, state: State, deps: Re
             deps.log.info(
                 `未対応の通知です: channelId=${notification.channelId} type=${notification.bodyType ?? '-'} title=${notification.title}`,
             );
-            remember(deps, {
+            publishHistory(deps, {
                 kind: notification.kind,
                 title: notification.title,
                 message: notification.message,

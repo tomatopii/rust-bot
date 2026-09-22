@@ -35,7 +35,7 @@ const ALLOWED_HOSTNAMES: readonly string[] = ['127.0.0.1', 'localhost', '[::1]']
 const MAX_BODY_BYTES = 64 * 1024;
 const SSE_PING_INTERVAL_MS = 15000;
 const CONTENT_SECURITY_POLICY =
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:";
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'";
 const COMMON_HEADERS: Readonly<Record<string, string>> = {
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
@@ -135,10 +135,10 @@ type DeviceView = Readonly<{
     pairedAt: string;
 }>;
 
-/** ペアリング済みデバイスを新しい順に並べる。サーバー名はペアリング時に覚えた名前、無ければアドレス */
+/** ペアリング済みデバイスを新しい順に並べる。サーバー名はペアリング時に覚えた名前、空白だけならアドレス */
 function deviceViews(state: State): readonly DeviceView[] {
     return Object.entries(state.entities)
-        .map(([key, entity]) => ({ key, ...entity, serverName: state.servers[entity.server]?.name ?? entity.server }))
+        .map(([key, entity]) => ({ key, ...entity, serverName: state.servers[entity.server]?.name.trim() || entity.server }))
         .sort((left, right) => right.pairedAt.localeCompare(left.pairedAt));
 }
 

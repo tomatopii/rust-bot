@@ -103,6 +103,7 @@ async function main(): Promise<void> {
         listener.stop();
         try {
             await pump.drain();
+            await settings.flush();
             await saveState(config.STATE_FILE, pump.getState());
         } catch (error) {
             log.error(`終了時の保存に失敗しました: ${describeError(error)}`);
@@ -126,6 +127,8 @@ async function main(): Promise<void> {
     };
     process.once('SIGINT', shutdown);
     process.once('SIGTERM', shutdown);
+    // macOS / Linux で端末の窓を閉じたときも、記録を保存してから終える
+    process.once('SIGHUP', shutdown);
     process.on('uncaughtException', crash);
     process.on('unhandledRejection', crash);
 }

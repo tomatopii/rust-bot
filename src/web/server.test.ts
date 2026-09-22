@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type Settings, type SettingsStore } from '../settings.js';
 import { EMPTY_STATE, type State } from '../state.js';
 import { createEventHub, type EventHub } from './eventHub.js';
-import { startWebServer, type WebServer, type WebServerDeps } from './server.js';
+import { readIndexPage, startWebServer, type WebServer, type WebServerDeps } from './server.js';
 
 const logs: string[] = [];
 const log = {
@@ -43,6 +43,7 @@ function createStore(initial: Settings): SettingsStore {
             current = next;
             return Promise.resolve();
         },
+        flush: () => Promise.resolve(),
     };
 }
 
@@ -118,6 +119,7 @@ describe('startWebServer', () => {
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
         expect(response.headers.get('content-security-policy')).toContain("default-src 'self'");
+        expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
         expect(await response.text()).toContain('rust-bot');
     });
 
@@ -163,6 +165,26 @@ describe('startWebServer', () => {
         expect(body.devices[1]?.serverName).toBe('テストサーバー');
     });
 
+    it('GET /api/alarms はサーバー名が空白だけならアドレスを出す', async () => {
+        const blank: State = {
+            ...EMPTY_STATE,
+            servers: { '1.2.3.4:28082': { name: '  ' } },
+            entities: {
+                '1.2.3.4:28082/1': {
+                    server: '1.2.3.4:28082',
+                    entityId: '1',
+                    entityType: '1',
+                    entityName: 'Smart Alarm',
+                    pairedAt: '2026-09-21T00:00:00.000Z',
+                },
+            },
+        };
+        await start({ getState: () => blank });
+        const response = await fetch(`${base}/api/alarms`);
+        const body = (await response.json()) as { devices: readonly { serverName: string }[] };
+        expect(body.devices[0]?.serverName).toBe('1.2.3.4:28082');
+    });
+
     it('GET /api/alarms は Object.prototype と同名の題名も未設定として出す', async () => {
         const fired: State = { ...EMPTY_STATE, alarmTitles: { toString: { lastFiredAt: '2026-09-22T01:00:00.000Z', count: 1 } } };
         await start({ getState: () => fired });
@@ -198,6 +220,14 @@ describe('startWebServer', () => {
         await start();
         const response = await fetch(`${base}/api/settings`, { method: 'PUT', headers: json, body: 'not json' });
         expect(response.status).toBe(400);
+    });
+
+    it('PUT /api/settings は上限を超える本文を 413 にして設定を変えない', async () => {
+        await start();
+        const body = `{"version":1,"unknownAlarmMode":"${'x'.repeat(70 * 1024)}"}`;
+        const response = await fetch(`${base}/api/settings`, { method: 'PUT', headers: json, body });
+        expect(response.status).toBe(413);
+        expect(store.get()).toEqual(DEFAULT_SETTINGS);
     });
 
     it('POST /api/test-post は成功で 204、失敗で 502 にする', async () => {
@@ -278,5 +308,12 @@ describe('startWebServer', () => {
         server = undefined;
         await expect(closing).resolves.toBeUndefined();
         await expect(fetch(`${base}/api/status`)).rejects.toThrow();
+    });
+});
+
+describe('readIndexPage', () => {
+    it('リポジトリの web/index.html を読める', async () => {
+        const page = await readIndexPage();
+        expect(page).toContain('<title>rust-bot');
     });
 });

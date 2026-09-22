@@ -18,6 +18,13 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# ダブルクリックで開いた端末は nvm などの設定を読み込まないことがあり、そこだけ node が見つからない
+if ! command -v node >/dev/null 2>&1; then
+    echo "node が見つかりません。Node.js 20.6 以上を入れるか、ターミナルで bash start.sh を実行してください。"
+    pause
+    exit 1
+fi
+
 if [ ! -d node_modules ]; then
     echo "依存パッケージを入れます..."
     if ! npm install; then

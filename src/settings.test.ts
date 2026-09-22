@@ -42,6 +42,16 @@ describe('alarmTitleKey', () => {
     it('長すぎる題名は設定ファイルに入る長さに切る', () => {
         expect(alarmTitleKey('a'.repeat(300))).toHaveLength(256);
     });
+
+    it('制御文字を落とす', () => {
+        expect(alarmTitleKey('Front\u0000 door\u001b')).toBe('Front door');
+        expect(alarmTitleKey('\u0007\u0009')).toBe('(無題)');
+    });
+
+    it('__proto__ の題名は保存できる添字に置き換える', () => {
+        expect(alarmTitleKey('__proto__')).toBe('(__proto__)');
+        expect(alarmTitleKey('  __proto__  ')).toBe('(__proto__)');
+    });
 });
 
 describe('alarmRouteFor', () => {
@@ -96,12 +106,20 @@ describe('parseSettings', () => {
         expect(parsed).toEqual({ ok: true, settings: DEFAULT_SETTINGS });
     });
 
-    it('題名ごとの設定を読み、メンションの空白を落とす', () => {
-        const parsed = parseSettings({ version: 1, unknownAlarmMode: 'mute', alarms: { Front: { mode: 'log', mention: ' @here ' } } });
+    it('題名ごとの設定を読み、メンションの空白と制御文字を落とす', () => {
+        const parsed = parseSettings({
+            version: 1,
+            unknownAlarmMode: 'mute',
+            alarms: { Front: { mode: 'log', mention: '\u0001 @here ' } },
+        });
         expect(parsed.ok).toBe(true);
         if (!parsed.ok) return;
         expect(parsed.settings.unknownAlarmMode).toBe('mute');
         expect(parsed.settings.alarms['Front']).toEqual({ mode: 'log', mention: '@here' });
+    });
+
+    it('制御文字を含む題名を拒否する', () => {
+        expect(parseSettings({ version: 1, alarms: { ['Front\u0000door']: { mode: 'log' } } })).toMatchObject({ ok: false });
     });
 
     it('知らない振り分け・空の題名・長すぎるメンションを理由つきで拒否する', () => {
@@ -131,6 +149,26 @@ describe('loadSettings / saveSettings', () => {
         expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(settings);
     });
 
+    it('制御文字を含む題名でも、添字にしてから登録した設定は読み戻せる', async () => {
+        const path = join(dir, 'settings.json');
+        const key = alarmTitleKey('Front\u0000door');
+        await saveSettings(path, rememberAlarmTitle(DEFAULT_SETTINGS, key));
+        const loaded = await loadSettings(path, log);
+        expect(alarmRouteFor(loaded, key)).toEqual({ mode: 'discord', mention: undefined, known: true });
+        expect(warnings).toEqual([]);
+    });
+
+    it('__proto__ の題名も添字にしてからなら保存して読み戻せる', async () => {
+        const path = join(dir, 'settings.json');
+        const key = alarmTitleKey('__proto__');
+        const parsed = parseSettings({ version: 1, alarms: { [key]: { mode: 'log' } } });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        await saveSettings(path, parsed.settings);
+        const loaded = await loadSettings(path, log);
+        expect(alarmRouteFor(loaded, key)).toEqual({ mode: 'log', mention: undefined, known: true });
+    });
+
     it('壊れたファイルは警告して既定の設定にする', async () => {
         const path = join(dir, 'settings.json');
         await writeFile(path, '{broken', 'utf8');
@@ -156,12 +194,33 @@ describe('createSettingsStore', () => {
         const first = rememberAlarmTitle(DEFAULT_SETTINGS, 'Front');
         const second = rememberAlarmTitle(first, 'Back');
         const saving = store.update(first);
-        // 保存の完了を待たずに更新しても、メモリ上は新しい値になる
         expect(store.get()).toBe(first);
         await Promise.all([saving, store.update(second)]);
 
         expect(store.get()).toBe(second);
         expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(second);
+    });
+
+    it('flush は保存待ちが片付くまで待つ', async () => {
+        const path = join(dir, 'settings.json');
+        const store = createSettingsStore(path, DEFAULT_SETTINGS, log);
+        const first = rememberAlarmTitle(DEFAULT_SETTINGS, 'Front');
+        const second = rememberAlarmTitle(first, 'Back');
+
+        void store.update(first);
+        void store.update(second);
+        await store.flush();
+
+        expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(second);
+    });
+
+    it('flush は保存に失敗しても例外にならない', async () => {
+        const blocker = join(dir, 'blocker');
+        await writeFile(blocker, 'not a directory', 'utf8');
+        const store = createSettingsStore(join(blocker, 'settings.json'), DEFAULT_SETTINGS, log);
+        void store.update(rememberAlarmTitle(DEFAULT_SETTINGS, 'Front'));
+        await expect(store.flush()).resolves.toBeUndefined();
+        expect(errors).toHaveLength(1);
     });
 
     it('保存に失敗しても例外にせずログに残す', async () => {

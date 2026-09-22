@@ -23,28 +23,53 @@ export type Settings = Readonly<{
 /** 題名が無いアラームの表示名。空の添字は画面で扱えないので固定の名前にする */
 const UNTITLED_KEY = '(無題)';
 
+/** `__proto__` という題名に使う添字 */
+const PROTO_TITLE_KEY = '(__proto__)';
+
 const MAX_TITLE_LENGTH = 256;
 const MAX_MENTION_LENGTH = 200;
 
+const CONTROL_CHARS = /\p{Cc}/gu;
+
+/** 制御文字を落として前後の空白を除く。制御文字は画面の表示も 1 行のログも壊すため */
+function cleanText(value: string): string {
+    return value.replace(CONTROL_CHARS, '').trim();
+}
+
 const alarmSettingSchema = z.object({
     mode: z.enum(ALARM_MODES),
-    mention: z.string().trim().max(MAX_MENTION_LENGTH).optional(),
+    mention: z.string().max(MAX_MENTION_LENGTH).transform(cleanText).optional(),
 });
 
 const settingsSchema = z.object({
     version: z.literal(1),
     unknownAlarmMode: z.enum(ALARM_MODES).default('discord'),
-    alarms: z.record(z.string().min(1).max(MAX_TITLE_LENGTH), alarmSettingSchema).default({}),
+    alarms: z
+        .record(
+            z
+                .string()
+                .min(1)
+                .max(MAX_TITLE_LENGTH)
+                // 添字は alarmTitleKey を通った題名なので制御文字は入らない。手で書き換えたファイルだけここで弾く
+                .refine((key) => key.replace(CONTROL_CHARS, '') === key, '題名に制御文字は使えません'),
+            alarmSettingSchema,
+        )
+        .default({}),
 });
 
+/** settings.json が無いときの設定。すべての題名を Discord に投稿する */
 export const DEFAULT_SETTINGS: Settings = { version: 1, unknownAlarmMode: 'discord', alarms: {} };
 
-/** 題名を振り分けの添字にする。前後の空白を除き、空なら固定の名前にする */
+/** 題名を振り分けの添字にする。制御文字と前後の空白を除き、空なら固定の名前にする */
 export function alarmTitleKey(title: string): string {
-    const trimmed = title.trim();
-    return trimmed === '' ? UNTITLED_KEY : trimmed.slice(0, MAX_TITLE_LENGTH);
+    const cleaned = cleanText(title);
+    if (cleaned === '') return UNTITLED_KEY;
+    const key = cleaned.slice(0, MAX_TITLE_LENGTH);
+    // zod の record は __proto__ を自前の添字として持てず、保存しても読み直すと消えてしまうので別名にする
+    return key === '__proto__' ? PROTO_TITLE_KEY : key;
 }
 
+/** 題名 1 件の振り分け結果。known=false は settings.json に無い題名 */
 export type AlarmRoute = Readonly<{ mode: AlarmMode; mention: string | undefined; known: boolean }>;
 
 /** 題名に対する振り分けを返す。未設定なら unknownAlarmMode で known=false */
@@ -62,6 +87,7 @@ export function rememberAlarmTitle(settings: Settings, titleKey: string): Settin
     return { ...settings, alarms: { ...settings.alarms, [titleKey]: { mode: settings.unknownAlarmMode } } };
 }
 
+/** 検証の結果。失敗したときだけ人が読める理由が付く */
 export type ParseSettingsResult = Readonly<{ ok: true; settings: Settings }> | Readonly<{ ok: false; reason: string }>;
 
 /** 画面から届いた JSON を検証する。失敗理由は人が読める 1 行にする */
@@ -108,11 +134,14 @@ export async function saveSettings(path: string, settings: Settings): Promise<vo
     await rename(tmpPath, path);
 }
 
+/** 設定の現在値と保存をまとめた口。画面と通知処理の両方から使う */
 export type SettingsStore = Readonly<{
     /** 現在の設定 */
     get(): Settings;
     /** 設定を差し替えて保存する。保存に失敗してもメモリ上の値は新しいまま */
     update(next: Settings): Promise<void>;
+    /** 保存待ちが片付くまで待つ。保存の失敗は update と同じくログに残すだけで投げない */
+    flush(): Promise<void>;
 }>;
 
 /** メモリ上の現在値を正とする設定の置き場。保存は直列化し、通知処理と画面からの更新が入れ違っても最後の値が残る */
@@ -130,5 +159,6 @@ export function createSettingsStore(path: string, initial: Settings, log: Pick<L
                 .catch((error: unknown) => log.error(`${path} の保存に失敗しました: ${describeError(error)}`));
             return queue;
         },
+        flush: () => queue,
     };
 }

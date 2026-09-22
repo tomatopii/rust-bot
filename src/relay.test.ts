@@ -74,6 +74,7 @@ function createDeps(options: DepsOptions = {}) {
             settings = next;
             return Promise.resolve();
         },
+        flush: () => Promise.resolve(),
     };
     const deps: RelayDeps = {
         config: { ...config, ...options.config },
@@ -141,12 +142,16 @@ describe('relayNotification', () => {
     });
 
     it('ログだけの題名は投稿せず info で記録する', async () => {
-        const { deps, posted, logs, events, settings } = createDeps({ settings: settingsWith({ 'Front door': { mode: 'log' } }) });
+        const { deps, posted, logs, events } = createDeps({ settings: settingsWith({ 'Front door': { mode: 'log' } }) });
         await relayNotification(alarm, EMPTY_STATE, deps);
         expect(posted).toHaveLength(0);
         expect(logs.some((line) => line.startsWith('info') && line.includes('Front door'))).toBe(true);
         expect(notifications(events)).toMatchObject([{ outcome: 'logged' }]);
-        // 登録済みの題名は上書きしない
+    });
+
+    it('登録済みの題名は発報しても既定の振り分けで上書きしない', async () => {
+        const { deps, settings } = createDeps({ settings: settingsWith({ 'Front door': { mode: 'log' } }, 'mute') });
+        await relayNotification(alarm, EMPTY_STATE, deps);
         expect(settings().alarms['Front door']).toEqual({ mode: 'log' });
     });
 
@@ -173,6 +178,15 @@ describe('relayNotification', () => {
         const state = await relayNotification(untitled, EMPTY_STATE, deps);
         expect(Object.keys(settings().alarms)).toEqual(['(無題)']);
         expect(state.alarmTitles['(無題)']?.count).toBe(1);
+    });
+
+    it('題名が空のまま投稿しても履歴の題名は振り分けの添字に揃える', async () => {
+        const untitled = appData({ title: '  ', message: 'msg', channelId: 'alarm', body: JSON.stringify({ type: 'alarm' }) });
+        const { deps, posted, events } = createDeps();
+        await relayNotification(untitled, EMPTY_STATE, deps);
+        expect(posted).toHaveLength(1);
+        expect(posted[0]?.embeds[0]?.title).toBe('スマートアラーム');
+        expect(notifications(events)).toMatchObject([{ title: '(無題)', outcome: 'posted' }]);
     });
 
     it('アラーム本文にサーバー名があれば、覚えた名前が無くてもそれを出す', async () => {
