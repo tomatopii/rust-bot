@@ -1,0 +1,7 @@
+node_modules/
+dist/
+
+# 認証情報と実行時の記録は公開しない
+.env
+state.json
+state.json.tmp

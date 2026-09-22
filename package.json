@@ -1,0 +1,35 @@
+{
+    "name": "rust-bot",
+    "version": "0.1.0",
+    "description": "Rust+ のスマートアラーム通知を Discord に転送する小さなボット / Forwards Rust+ smart alarm push notifications to a Discord webhook",
+    "private": true,
+    "license": "MIT",
+    "author": "tomatopii",
+    "engines": {
+        "node": ">=20.6"
+    },
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "start": "node --env-file=.env dist/index.js",
+        "dev": "node --env-file=.env --import tsx src/index.ts",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "lint": "eslint .",
+        "test": "vitest run",
+        "verify": "npm run typecheck && npm run lint && npm run test"
+    },
+    "dependencies": {
+        "@liamcottle/push-receiver": "0.0.4",
+        "consola": "^3.4.2",
+        "zod": "^4.1.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.30.0",
+        "@types/node": "^22.15.0",
+        "eslint": "^9.30.0",
+        "tsx": "^4.20.0",
+        "typescript": "~5.9.0",
+        "typescript-eslint": "^8.35.0",
+        "vitest": "^3.2.0"
+    }
+}
