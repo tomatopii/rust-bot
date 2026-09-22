@@ -66,7 +66,8 @@ export async function relayNotification(appData: unknown, state: State, deps: Re
             else deps.log.debug(`ログイン通知は転送しない設定です: ${notification.title}`);
             return state;
         case 'unknown':
-            deps.log.debug(
+            // 実機の通知が想定外の形で届いたときに「届いていない」と区別できるよう、既定のログレベルで見えるようにする
+            deps.log.info(
                 `未対応の通知です: channelId=${notification.channelId} type=${notification.bodyType ?? '-'} title=${notification.title}`,
             );
             return state;

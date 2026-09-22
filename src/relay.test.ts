@@ -120,6 +120,14 @@ describe('relayNotification', () => {
         expect(logs.some((line) => line.startsWith('error') && line.includes('boom'))).toBe(true);
     });
 
+    it('未対応の通知は既定で表示されるレベル（info）で記録し、投稿しない', async () => {
+        const news = appData({ title: 'News', message: 'Wipe today', channelId: 'news', body: JSON.stringify({ type: 'news' }) });
+        const { deps, posted, logs } = createDeps();
+        await relayNotification(news, EMPTY_STATE, deps);
+        expect(posted).toHaveLength(0);
+        expect(logs.some((line) => line.startsWith('info') && line.includes('channelId=news'))).toBe(true);
+    });
+
     it('読めない通知は警告して読み飛ばす', async () => {
         const { deps, posted, logs } = createDeps();
         await relayNotification('garbage', EMPTY_STATE, deps);
