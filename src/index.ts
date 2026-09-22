@@ -6,8 +6,9 @@ import { createMessagePump } from './messagePump.js';
 import { relayNotification } from './relay.js';
 import { loadState, saveState } from './state.js';
 
-// 終了時は処理中の通知を待ってから記録を保存するが、Discord が応答しない場合に備えて待ち時間を区切る
-const EXIT_TIMEOUT_MS = 30000;
+// 終了時は処理中の通知を待ってから記録を保存するが、Discord が応答しない場合に備えて待ち時間を区切る。
+// 投稿 1 件の最悪ケース（15 秒のタイムアウト × 3 回 + 待ち時間）より長くしておく
+const EXIT_TIMEOUT_MS = 60000;
 
 async function main(): Promise<void> {
     const log = createLogger();
@@ -39,7 +40,8 @@ async function main(): Promise<void> {
 
     let exiting = false;
     const exitAfterSaving = async (code: number): Promise<void> => {
-        setTimeout(() => process.exit(code === 0 ? 1 : code), EXIT_TIMEOUT_MS).unref();
+        // 打ち切りでも要求された終了コードを使う（Ctrl+C の 0 を 1 に変えると start.bat が再起動してしまう）
+        setTimeout(() => process.exit(code), EXIT_TIMEOUT_MS).unref();
         listener.stop();
         try {
             await pump.drain();
