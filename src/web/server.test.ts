@@ -1,5 +1,5 @@
-import { request } from 'node:http';
-import { afterEach, describe, expect, it } from 'vitest';
+import { request, type ClientRequest } from 'node:http';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type Settings, type SettingsStore } from '../settings.js';
 import { EMPTY_STATE, type State } from '../state.js';
 import { createEventHub, type EventHub } from './eventHub.js';
@@ -84,6 +84,17 @@ function rawGet(path: string, headers: Readonly<Record<string, string>>): Promis
     });
 }
 
+// SSE は本文が終わらないので、最初のチャンクが届いた時点の要求を返す（呼び出し側が destroy して切断を作る）
+function openEventStream(): Promise<ClientRequest> {
+    return new Promise((resolve, reject) => {
+        const req = request({ host: '127.0.0.1', port: server?.port, path: '/api/events', method: 'GET' }, (res) => {
+            res.once('data', () => resolve(req));
+        });
+        req.on('error', reject);
+        req.end();
+    });
+}
+
 afterEach(async () => {
     await server?.close();
     server = undefined;
@@ -152,6 +163,16 @@ describe('startWebServer', () => {
         expect(body.devices[1]?.serverName).toBe('テストサーバー');
     });
 
+    it('GET /api/alarms は Object.prototype と同名の題名も未設定として出す', async () => {
+        const fired: State = { ...EMPTY_STATE, alarmTitles: { toString: { lastFiredAt: '2026-09-22T01:00:00.000Z', count: 1 } } };
+        await start({ getState: () => fired });
+        const response = await fetch(`${base}/api/alarms`);
+        const body = (await response.json()) as { titles: readonly Record<string, unknown>[] };
+        expect(body.titles).toEqual([
+            { title: 'toString', mode: 'discord', mention: undefined, known: false, lastFiredAt: '2026-09-22T01:00:00.000Z', count: 1 },
+        ]);
+    });
+
     it('PUT /api/settings は検証に通った設定を保存する', async () => {
         await start();
         const settings = { version: 1, unknownAlarmMode: 'mute', alarms: { 玄関: { mode: 'discord', mention: '@here' } } };
@@ -208,6 +229,34 @@ describe('startWebServer', () => {
         expect(next).toContain('event: notification');
         expect(next).toContain('玄関');
         await reader.cancel();
+    });
+
+    it('ブラウザが切断したら購読と ping タイマーを片付ける', async () => {
+        const source = createEventHub();
+        let subscribers = 0;
+        const counting: EventHub = {
+            ...source,
+            subscribe: (listener) => {
+                subscribers += 1;
+                const unsubscribe = source.subscribe(listener);
+                return () => {
+                    subscribers -= 1;
+                    unsubscribe();
+                };
+            },
+        };
+        const clearSpy = vi.spyOn(globalThis, 'clearInterval');
+        try {
+            await start({ hub: counting });
+            const req = await openEventStream();
+            expect(subscribers).toBe(1);
+
+            req.destroy();
+            await vi.waitFor(() => expect(subscribers).toBe(0));
+            expect(clearSpy).toHaveBeenCalled();
+        } finally {
+            clearSpy.mockRestore();
+        }
     });
 
     it('ハンドラの例外は詳細を返さず 500 にする', async () => {

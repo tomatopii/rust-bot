@@ -439,12 +439,32 @@
                 if (response.ok) el('unknown-mode').value = (await response.json()).unknownAlarmMode;
             }
 
-            async function save() {
-                const alarms = {};
-                for (const row of alarmRows) {
-                    const mention = row.mentionInput.value.trim();
-                    alarms[row.title] = mention === '' ? { mode: row.modeInput.value } : { mode: row.modeInput.value, mention };
+            // 表を開いている間に自動登録された題名（や別のタブでの変更）を保存で消さないよう、送る直前の一覧を足す
+            async function mergeLatestTitles(alarms) {
+                let titles;
+                try {
+                    const response = await fetch('/api/alarms');
+                    if (!response.ok) return;
+                    titles = (await response.json()).titles;
+                } catch {
+                    // 一覧を取れなければ表の内容だけで保存する（保存自体は続ける）
+                    return;
                 }
+                for (const row of titles) {
+                    if (!row.known || Object.hasOwn(alarms, row.title)) continue;
+                    alarms[row.title] = row.mention ? { mode: row.mode, mention: row.mention } : { mode: row.mode };
+                }
+            }
+
+            async function save() {
+                const alarms = Object.fromEntries(
+                    alarmRows.map((row) => {
+                        const mention = row.mentionInput.value.trim();
+                        const setting = mention === '' ? { mode: row.modeInput.value } : { mode: row.modeInput.value, mention };
+                        return [row.title, setting];
+                    }),
+                );
+                await mergeLatestTitles(alarms);
                 const settings = { version: 1, unknownAlarmMode: el('unknown-mode').value, alarms };
                 const result = el('save-result');
                 try {
@@ -503,7 +523,12 @@
                     if (!dirty) void loadAlarms();
                 });
                 for (const type of ['log', 'notification', 'status']) {
-                    source.addEventListener(type, (message) => applyEvent(JSON.parse(message.data)));
+                    source.addEventListener(type, (message) => {
+                        const event = JSON.parse(message.data);
+                        applyEvent(event);
+                        // 発報で自動登録された題名を表に出す（編集中は保存時に合成するので触らない）
+                        if (event.type === 'notification' && event.kind === 'alarm' && !dirty) void loadAlarms();
+                    });
                 }
                 source.addEventListener('error', () => {
                     el('conn').textContent = '（画面が切断されました。再接続します）';

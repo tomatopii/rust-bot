@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { z } from 'zod';
 import { describeIssues } from './describeIssues.js';
 import { describeError, type Logger } from './logger.js';
+import { ownValue } from './record.js';
 
 /** アラームの題名ごとの扱い。discord=投稿する / log=ログだけ / mute=無視する */
 export const ALARM_MODES = ['discord', 'log', 'mute'] as const;
@@ -48,7 +49,7 @@ export type AlarmRoute = Readonly<{ mode: AlarmMode; mention: string | undefined
 
 /** 題名に対する振り分けを返す。未設定なら unknownAlarmMode で known=false */
 export function alarmRouteFor(settings: Settings, titleKey: string): AlarmRoute {
-    const setting = settings.alarms[titleKey];
+    const setting = ownValue(settings.alarms, titleKey);
     if (setting === undefined) return { mode: settings.unknownAlarmMode, mention: undefined, known: false };
     // 画面から空欄で送られた mention は「上書きしない」を意味するので未設定に倒す
     const mention = setting.mention?.trim();
@@ -57,7 +58,7 @@ export function alarmRouteFor(settings: Settings, titleKey: string): AlarmRoute 
 
 /** 未設定の題名を unknownAlarmMode で登録した settings を返す。登録済みなら同じ参照を返す */
 export function rememberAlarmTitle(settings: Settings, titleKey: string): Settings {
-    if (settings.alarms[titleKey] !== undefined) return settings;
+    if (ownValue(settings.alarms, titleKey) !== undefined) return settings;
     return { ...settings, alarms: { ...settings.alarms, [titleKey]: { mode: settings.unknownAlarmMode } } };
 }
 

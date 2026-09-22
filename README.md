@@ -78,12 +78,19 @@ GCM_SECURITY_TOKEN=YYYY
 | macOS | `start.command` をダブルクリック |
 | Linux | ターミナルで `./start.sh` |
 
-macOS で「開発元を確認できないため開けません」と出たら、`start.command` を右クリック →「開く」→ もう一度「開く」を選びます。
-ZIP で配布したものなど実行権限が落ちている場合は、ターミナルで次を実行してください。
+macOS で「開発元を確認できないため開けません」と出たら、「システム設定」→「プライバシーとセキュリティ」を開き、画面の下の方に出る `start.command` の行で「このまま開く」を選びます（macOS 15 以降は右クリックの「開く」では回避できません）。
+
+ターミナルからなら次の 1 行で起動できます。ZIP でダウンロードして実行権限やダウンロードの印（quarantine）が付いた状態でも、この形なら止められません。
+
+```sh
+bash start.sh
+```
+
+`start.command` のダブルクリックで使いたい場合は、先に次を実行して実行権限とダウンロードの印を直します。
 
 ```sh
 chmod +x start.sh start.command
-./start.sh
+xattr -dr com.apple.quarantine .
 ```
 
 どの OS でも、コマンドから直接動かすこともできます。

@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { z } from 'zod';
 import type { Logger } from './logger.js';
 import type { Notification, ServerAddress } from './notification/parse.js';
+import { ownValue } from './record.js';
 
 // 受信済み ID は FCM の再送を見分けるためだけに使うので、古いものから捨てる
 const MAX_PERSISTENT_IDS = 500;
@@ -106,6 +107,6 @@ export function rememberEntity(state: State, notification: PairingEntityNotifica
 
 /** 題名ごとの発報回数と最終発報時刻を更新した新しい state を返す */
 export function rememberAlarmFired(state: State, titleKey: string, now: Date): State {
-    const count = (state.alarmTitles[titleKey]?.count ?? 0) + 1;
+    const count = (ownValue(state.alarmTitles, titleKey)?.count ?? 0) + 1;
     return { ...state, alarmTitles: { ...state.alarmTitles, [titleKey]: { lastFiredAt: now.toISOString(), count } } };
 }

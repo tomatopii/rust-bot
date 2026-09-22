@@ -125,6 +125,21 @@ describe('relayNotification', () => {
         expect(settings().alarms['Front door']).toEqual({ mode: 'log' });
     });
 
+    it('Object.prototype と同名の題名も未設定扱いで転送し、設定に登録する', async () => {
+        const tricky = appData({
+            title: 'toString',
+            message: 'Someone is at the door!',
+            channelId: 'alarm',
+            body: JSON.stringify({ type: 'alarm', ip: '1.2.3.4', port: '28083' }),
+        });
+        const { deps, posted, events, settings } = createDeps();
+        const state = await relayNotification(tricky, EMPTY_STATE, deps);
+        expect(posted).toHaveLength(1);
+        expect(notifications(events)).toMatchObject([{ kind: 'alarm', title: 'toString', outcome: 'posted' }]);
+        expect(settings().alarms['toString']).toEqual({ mode: 'discord' });
+        expect(state.alarmTitles['toString']).toEqual({ count: 1, lastFiredAt: '2026-09-22T03:00:00.000Z' });
+    });
+
     it('ログだけの題名は投稿せず info で記録する', async () => {
         const { deps, posted, logs, events, settings } = createDeps({ settings: settingsWith({ 'Front door': { mode: 'log' } }) });
         await relayNotification(alarm, EMPTY_STATE, deps);

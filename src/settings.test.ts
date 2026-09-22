@@ -63,6 +63,12 @@ describe('alarmRouteFor', () => {
     it('空白だけのメンションは未設定として扱う', () => {
         expect(alarmRouteFor(settings, 'Side').mention).toBeUndefined();
     });
+
+    it('Object.prototype と同名の題名も未設定として扱う', () => {
+        for (const title of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+            expect(alarmRouteFor(settings, title)).toEqual({ mode: 'log', mention: undefined, known: false });
+        }
+    });
 });
 
 describe('rememberAlarmTitle', () => {
@@ -75,6 +81,12 @@ describe('rememberAlarmTitle', () => {
     it('登録済みなら同じ参照を返す', () => {
         const once = rememberAlarmTitle(DEFAULT_SETTINGS, 'Front');
         expect(rememberAlarmTitle(once, 'Front')).toBe(once);
+    });
+
+    it('Object.prototype と同名の題名も登録でき、2 回目は同じ参照を返す', () => {
+        const added = rememberAlarmTitle(DEFAULT_SETTINGS, 'constructor');
+        expect(alarmRouteFor(added, 'constructor')).toEqual({ mode: 'discord', mention: undefined, known: true });
+        expect(rememberAlarmTitle(added, 'constructor')).toBe(added);
     });
 });
 

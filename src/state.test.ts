@@ -124,6 +124,11 @@ describe('rememberAlarmFired', () => {
         expect(twice.alarmTitles['Front door']).toEqual({ count: 2, lastFiredAt: '2026-09-22T04:00:00.000Z' });
         expect(EMPTY_STATE.alarmTitles).toEqual({});
     });
+
+    it('Object.prototype と同名の題名も 1 回目から数える', () => {
+        const once = rememberAlarmFired(EMPTY_STATE, 'constructor', new Date('2026-09-22T03:00:00Z'));
+        expect(once.alarmTitles['constructor']).toEqual({ count: 1, lastFiredAt: '2026-09-22T03:00:00.000Z' });
+    });
 });
 
 describe('古い state.json との互換', () => {

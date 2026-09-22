@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { describeError, type Logger } from '../logger.js';
+import { ownValue } from '../record.js';
 import { alarmRouteFor, parseSettings, type AlarmMode, type SettingsStore } from '../settings.js';
 import type { State } from '../state.js';
 import type { EventHub } from './eventHub.js';
@@ -112,7 +113,7 @@ function alarmViews(deps: WebServerDeps): readonly AlarmView[] {
         .sort((left, right) => left.localeCompare(right, 'ja'))
         .map((title) => {
             const route = alarmRouteFor(settings, title);
-            const fired = state.alarmTitles[title];
+            const fired = ownValue(state.alarmTitles, title);
             return {
                 title,
                 mode: route.mode,
