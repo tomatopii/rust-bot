@@ -8,6 +8,9 @@ const DISCORD_WEBHOOK_PREFIXES = [
 
 const STATE_FILE_DEFAULT = 'state.json';
 const SETTINGS_FILE_DEFAULT = 'settings.json';
+const WEB_PORT_DEFAULT = '3080';
+const MAX_PORT = 65535;
+const WEB_PORT_MESSAGE = 'WEB_PORT は 0〜65535 の整数です（0 で Web 画面を無効にします）';
 
 // .env の値は全て文字列なので、真偽値は 'true'（大文字小文字は問わない）だけを真にする
 const envBoolean = z
@@ -41,6 +44,14 @@ const configSchema = z.object({
         .trim()
         .default(SETTINGS_FILE_DEFAULT)
         .transform((value) => (value === '' ? SETTINGS_FILE_DEFAULT : value)),
+    WEB_PORT: z
+        .string()
+        .trim()
+        .default(WEB_PORT_DEFAULT)
+        .transform((value) => (value === '' ? WEB_PORT_DEFAULT : value))
+        .pipe(z.string().regex(/^\d+$/, WEB_PORT_MESSAGE))
+        .transform((value) => Number(value))
+        .pipe(z.number().max(MAX_PORT, WEB_PORT_MESSAGE)),
 });
 
 export type Config = Readonly<z.infer<typeof configSchema>>;

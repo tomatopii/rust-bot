@@ -16,6 +16,7 @@ const config: Config = {
     FORWARD_TEAM_LOGIN: false,
     STATE_FILE: 'state.json',
     SETTINGS_FILE: 'settings.json',
+    WEB_PORT: 0,
 };
 
 const appData = (fields: Record<string, string>) => Object.entries(fields).map(([key, value]) => ({ key, value }));

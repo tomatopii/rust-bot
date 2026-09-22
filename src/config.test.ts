@@ -43,6 +43,21 @@ describe('loadConfig', () => {
         expect(loadConfig({ ...valid, SETTINGS_FILE: 'data/settings.json' }).SETTINGS_FILE).toBe('data/settings.json');
     });
 
+    it('WEB_PORT は整数になり、空なら既定値にする', () => {
+        expect(loadConfig(valid).WEB_PORT).toBe(3080);
+        expect(loadConfig({ ...valid, WEB_PORT: '' }).WEB_PORT).toBe(3080);
+        expect(loadConfig({ ...valid, WEB_PORT: '  ' }).WEB_PORT).toBe(3080);
+        expect(loadConfig({ ...valid, WEB_PORT: ' 8080 ' }).WEB_PORT).toBe(8080);
+        expect(loadConfig({ ...valid, WEB_PORT: '0' }).WEB_PORT).toBe(0);
+    });
+
+    it('WEB_PORT が整数でないか範囲外なら設定エラーにする', () => {
+        expect(() => loadConfig({ ...valid, WEB_PORT: 'abc' })).toThrow(/WEB_PORT/);
+        expect(() => loadConfig({ ...valid, WEB_PORT: '-1' })).toThrow(/WEB_PORT/);
+        expect(() => loadConfig({ ...valid, WEB_PORT: '8080.5' })).toThrow(/WEB_PORT/);
+        expect(() => loadConfig({ ...valid, WEB_PORT: '65536' })).toThrow(/WEB_PORT/);
+    });
+
     it('真偽値は true のときだけ真になる', () => {
         expect(loadConfig({ ...valid, FORWARD_DEATH: 'TRUE' }).FORWARD_DEATH).toBe(true);
         expect(loadConfig({ ...valid, FORWARD_DEATH: 'yes' }).FORWARD_DEATH).toBe(false);
