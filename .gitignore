@@ -5,3 +5,5 @@ dist/
 .env
 state.json
 state.json.tmp
+# rustplus.js の fcm-register が書き出す認証情報
+rustplus.config.json

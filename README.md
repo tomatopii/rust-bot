@@ -30,12 +30,28 @@ Rust+ アプリがスマホで受け取るプッシュ通知（FCM）を、PC �
 
 ### 2. Rust+ の認証情報を取る
 
-1. <https://rustplusplus-credentials.netlify.app/> を開く
-2. 右上の `Install Extension` でブラウザ拡張を入れ、ページを再読み込みする
-3. `Log In` で Steam にログインする
-4. `/credentials add gcm_android_id:XXXX gcm_security_token:YYYY steam_id:... issued_date:... expire_date:...` と表示される。`XXXX` と `YYYY` の 2 つを控える
+Rust+ の通知を受け取るには、この PC を「もう 1 台のスマホ」として Rust+ に登録します。自分の PC だけで完結する方法（推奨）と、Web ページを使う方法があります。
 
-この 2 つの値は自分の Rust+ 通知を読めるものなので、他人に見せないでください。
+**方法 A（推奨）: 自分の PC で登録する**
+
+[rustplus.js](https://github.com/liamcottle/rustplus.js) の `fcm-register` を使います。Google Chrome が必要です（無い場合は環境変数 `CHROME_PATH` に Edge の `msedge.exe` のパスを入れると動きます）。
+
+1. 空のフォルダで PowerShell を開き、`npx --yes @liamcottle/rustplus.js fcm-register` を実行する
+2. 登録専用の Chrome が開くので、Rust+ のログイン画面から Steam でログインする
+3. `Successfully registered with Rust Companion API` と出たら、同じフォルダにできた `rustplus.config.json` を開き、`fcm_credentials.gcm.androidId` を `GCM_ANDROID_ID`、`fcm_credentials.gcm.securityToken` を `GCM_SECURITY_TOKEN` として控える
+4. `rustplus.config.json` は認証情報そのものなので、控えたら削除する
+
+この方法では、ログインの情報は Facepunch・Steam・Google・Expo（通知の配送に必要な相手）にしか渡りません。開いた Chrome は登録専用の設定で起動するので、他のサイトは開かず、終わったら閉じてください。
+
+**方法 B: Web ページで登録する**
+
+rustPlusPlus の作者が公開している <https://rustplusplus-credentials.netlify.app/> とブラウザ拡張を使います。手軽ですが、Rust+ のログイントークンが作者のサーバーを経由します（Facepunch や Steam の公式ではありません）。
+
+1. ページを開き、`Install Extension` で拡張を入れてページを再読み込みする
+2. `Log In` で Steam にログインする
+3. `/credentials add gcm_android_id:XXXX gcm_security_token:YYYY ...` と表示される。`XXXX` と `YYYY` を控える
+
+どちらの方法でも、この 2 つの値は自分の Rust+ 通知を読めるものなので、他人に見せないでください。
 
 ### 3. `.env` を作る
 
