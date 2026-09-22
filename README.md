@@ -7,8 +7,11 @@ Rust+ のスマートアラーム通知を Discord に転送する小さなボ�
 ## できること
 
 - ゲーム内のスマートアラームが発報したら、Discord のチャンネルに投稿する（アラームの題名・本文・サーバー名・時刻）
+- アラームの題名ごとに「Discord に投稿 / ログだけ / 無視」を選べる。メンションも題名ごとに変えられる
+- ログ・通知履歴・設定を、同じ PC のブラウザから見られる（[Web 画面](#web-画面)）
 - 任意で、オフライン中に倒された通知とチームメイトのログイン通知も転送する
 - Discord の Bot を作る必要がない（チャンネルの Webhook だけ）。チャンネルやロールを勝手に作らない
+- Windows・macOS・Linux で同じように動く
 
 ## 仕組み
 
@@ -17,7 +20,9 @@ Rust+ アプリがスマホで受け取るプッシュ通知（FCM）を、PC �
 
 ## 必要なもの
 
+- Windows・macOS・Linux のいずれか
 - Node.js 20.6 以上（`node -v` で確認）
+- Google Chrome（手順 2 で認証情報を取るときだけ使います。Windows で Chrome が無い場合は Edge で代用できます）
 - PC 版 Rust と Steam アカウント。Rust+ が有効なサーバー
 - 投稿先の Discord サーバーで Webhook を作れる権限
 
@@ -34,9 +39,9 @@ Rust+ の通知を受け取るには、この PC を「もう 1 台のスマホ�
 
 **方法 A（推奨）: 自分の PC で登録する**
 
-[rustplus.js](https://github.com/liamcottle/rustplus.js) の `fcm-register` を使います。Google Chrome が必要です（無い場合は環境変数 `CHROME_PATH` に Edge の `msedge.exe` のパスを入れると動きます）。
+[rustplus.js](https://github.com/liamcottle/rustplus.js) の `fcm-register` を使います。Google Chrome が必要です（Windows で Chrome が無い場合は、環境変数 `CHROME_PATH` に Edge の `msedge.exe` のパスを入れると動きます）。
 
-1. 空のフォルダで PowerShell を開き、`npx --yes @liamcottle/rustplus.js fcm-register` を実行する
+1. 空のフォルダでターミナル（Windows は PowerShell）を開き、`npx --yes @liamcottle/rustplus.js fcm-register` を実行する
 2. 登録専用の Chrome が開くので、Rust+ のログイン画面から Steam でログインする
 3. `Successfully registered with Rust Companion API` と出たら、同じフォルダにできた `rustplus.config.json` を開き、`fcm_credentials.gcm.androidId` を `GCM_ANDROID_ID`、`fcm_credentials.gcm.securityToken` を `GCM_SECURITY_TOKEN` として控える
 4. `rustplus.config.json` は認証情報そのものなので、控えたら削除する
@@ -65,8 +70,23 @@ GCM_SECURITY_TOKEN=YYYY
 
 ### 4. 起動する
 
-`start.bat` をダブルクリックします（初回は依存パッケージのインストールとビルドが走ります）。
-コマンドで動かす場合は次のとおりです。
+初回は依存パッケージのインストールとビルドが走ります。
+
+| OS | 起動のしかた |
+| --- | --- |
+| Windows | `start.bat` をダブルクリック |
+| macOS | `start.command` をダブルクリック |
+| Linux | ターミナルで `./start.sh` |
+
+macOS で「開発元を確認できないため開けません」と出たら、`start.command` を右クリック →「開く」→ もう一度「開く」を選びます。
+ZIP で配布したものなど実行権限が落ちている場合は、ターミナルで次を実行してください。
+
+```sh
+chmod +x start.sh start.command
+./start.sh
+```
+
+どの OS でも、コマンドから直接動かすこともできます。
 
 ```sh
 npm install
@@ -75,6 +95,7 @@ npm start
 ```
 
 `FCM に接続しました。通知を待っています` と出れば準備完了です。
+`Web 画面: http://127.0.0.1:3080/` も出るので、ブラウザで開くとログや設定を見られます（[Web 画面](#web-画面)）。
 
 ### 5. ゲーム内でペアリングする
 
@@ -90,6 +111,41 @@ npm start
 
 通知の題名と本文は、ゲーム内でアラームに近づいて設定します（Rust+ アプリからは変えられません）。複数のアラームを Discord で見分けたいときは、それぞれ別の題名を付けてください。
 
+## Web 画面
+
+ボットを起動したら、同じ PC のブラウザで <http://127.0.0.1:3080/> を開きます（ポートは `WEB_PORT` で変えられます。`0` にすると画面ごと無効になります）。
+
+できること:
+
+- FCM の接続状態・最後に通知を受けた時刻・起動時刻・転送の設定を見る
+- 「Discord にテスト投稿」で Webhook が生きているか確かめる
+- アラームの題名ごとの振り分けとメンションを変える
+- ペアリング済みのスマートアラームの一覧を見る
+- 通知の履歴とログをそのまま流れてくる形で見る
+
+画面は `127.0.0.1` だけで待ち受けるので、開けるのはボットを動かしている PC からだけです（同じ LAN の別の端末や外部からは開けません）。そのためログイン機能はありません。画面と `settings.json` に Webhook URL や認証情報は出ません。
+
+### アラームの振り分け（`settings.json`）
+
+発報の通知にはアラームの ID が入らないので、**題名**で見分けます。ゲーム内でアラームごとに別の題名を付けてください。
+
+画面の「保存」を押すと `settings.json` に書かれ、再起動しなくてもすぐ効きます。中身は次の形です（直接編集する場合はボットを止めてから）。
+
+```json
+{
+    "version": 1,
+    "unknownAlarmMode": "discord",
+    "alarms": {
+        "玄関": { "mode": "discord", "mention": "<@&123456789012345678>" },
+        "採掘場": { "mode": "log" }
+    }
+}
+```
+
+- `mode` は `discord`（Discord に投稿）・`log`（ログだけ）・`mute`（無視）のどれか
+- `mention` は投稿に付けるメンション。空なら `.env` の `ALARM_MENTION` を使う
+- 設定に無い題名は `unknownAlarmMode`（既定 `discord`）で扱い、初めて発報したときに一覧へ自動で追加されます
+
 ## 設定（`.env`）
 
 | 変数 | 必須 | 説明 |
@@ -101,6 +157,8 @@ npm start
 | `FORWARD_DEATH` | 任意 | `true` でオフライン中に倒された通知も転送する（既定 `false`） |
 | `FORWARD_TEAM_LOGIN` | 任意 | `true` でチームメイトのログイン通知も転送する（既定 `false`） |
 | `STATE_FILE` | 任意 | 受信済み通知とサーバー情報（アドレスと名前）の記録先（既定 `state.json`。空にすると既定値）。既定以外の場所にすると `.gitignore` の対象外になるので注意 |
+| `SETTINGS_FILE` | 任意 | アラームの振り分け設定の置き場（既定 `settings.json`。空にすると既定値） |
+| `WEB_PORT` | 任意 | Web 画面のポート（既定 `3080`。`0` にすると Web 画面を無効にする） |
 
 ## 知っておいてほしいこと
 
@@ -108,8 +166,8 @@ npm start
 - スマホの Rust+ でアラームごとの通知を OFF にすると、サーバーがその通知を送らなくなるので、このボットにも届かなくなります。アプリ全体や端末の通知設定は影響しません
 - 認証情報には有効期限があります。通知が届かなくなったら手順 2 をやり直し、`.env` の 2 つの値を差し替えてください
 - Rust+ のプッシュ通知は稀に届かないことがあると、参考にした rustPlusPlus の作者が注記しています。取りこぼしが気になる場合に備えて、Rust サーバーへ直接接続してアラームの状態変化を拾う方式（Phase 2）を検討しています
-- `state.json` に保存するのは、受信済み通知の ID と、ペアリングしたサーバーのアドレス（IP:ポート）と名前だけです。認証情報（`GCM_ANDROID_ID` / `GCM_SECURITY_TOKEN`）と Webhook URL は保存しません。サーバーのアドレスが入るので、中身をそのまま他人に渡さないでください（`.gitignore` で除外済みです）
-- ボットが想定外のエラーで止まった場合、`start.bat` は 10 秒後に自動で再起動します。Ctrl+C で止めたときは再起動しません
+- `state.json` に保存するのは、受信済み通知の ID、ペアリングしたサーバーのアドレス（IP:ポート）と名前、ペアリングしたデバイス（ID・種類・名前・時刻）、アラームの題名ごとの発報回数と最終発報時刻だけです。認証情報（`GCM_ANDROID_ID` / `GCM_SECURITY_TOKEN`）と Webhook URL は保存しません。サーバーのアドレスが入るので、中身をそのまま他人に渡さないでください（`.gitignore` で除外済みです）
+- ボットが想定外のエラーで止まった場合、`start.bat` / `start.sh` は 10 秒後に自動で再起動します。Ctrl+C で止めたときは再起動しません
 
 ## 開発
 
