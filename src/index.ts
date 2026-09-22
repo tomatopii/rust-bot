@@ -4,6 +4,7 @@ import { startFcmListener } from './fcm/fcmListener.js';
 import { createLogger, describeError } from './logger.js';
 import { createMessagePump } from './messagePump.js';
 import { relayNotification } from './relay.js';
+import { createSettingsStore, loadSettings } from './settings.js';
 import { loadState, saveState } from './state.js';
 import { createEventHub } from './web/eventHub.js';
 
@@ -16,6 +17,7 @@ async function main(): Promise<void> {
     const log = createLogger(hub);
     const config = loadConfig();
     const initialState = await loadState(config.STATE_FILE, log);
+    const settings = createSettingsStore(config.SETTINGS_FILE, await loadSettings(config.SETTINGS_FILE, log), log);
     const forwards = ['アラーム', ...(config.FORWARD_DEATH ? ['死亡'] : []), ...(config.FORWARD_TEAM_LOGIN ? ['ログイン'] : [])];
     log.info(`起動しました（転送: ${forwards.join('・')} / 記録: ${config.STATE_FILE}）`);
 
@@ -27,6 +29,8 @@ async function main(): Promise<void> {
                 log,
                 post: (payload) => postWebhook(config.DISCORD_WEBHOOK_URL, payload),
                 now: () => new Date(),
+                settings,
+                hub,
             }),
         save: (state) => saveState(config.STATE_FILE, state),
         log,

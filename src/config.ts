@@ -7,6 +7,7 @@ const DISCORD_WEBHOOK_PREFIXES = [
 ] as const;
 
 const STATE_FILE_DEFAULT = 'state.json';
+const SETTINGS_FILE_DEFAULT = 'settings.json';
 
 // .env の値は全て文字列なので、真偽値は 'true'（大文字小文字は問わない）だけを真にする
 const envBoolean = z
@@ -35,6 +36,11 @@ const configSchema = z.object({
         .trim()
         .default(STATE_FILE_DEFAULT)
         .transform((value) => (value === '' ? STATE_FILE_DEFAULT : value)),
+    SETTINGS_FILE: z
+        .string()
+        .trim()
+        .default(SETTINGS_FILE_DEFAULT)
+        .transform((value) => (value === '' ? SETTINGS_FILE_DEFAULT : value)),
 });
 
 export type Config = Readonly<z.infer<typeof configSchema>>;

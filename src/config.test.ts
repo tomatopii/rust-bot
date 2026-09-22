@@ -15,6 +15,7 @@ describe('loadConfig', () => {
         expect(config.FORWARD_DEATH).toBe(false);
         expect(config.FORWARD_TEAM_LOGIN).toBe(false);
         expect(config.STATE_FILE).toBe('state.json');
+        expect(config.SETTINGS_FILE).toBe('settings.json');
     });
 
     it('足りない項目を全て列挙して失敗する', () => {
@@ -34,6 +35,12 @@ describe('loadConfig', () => {
         expect(loadConfig({ ...valid, STATE_FILE: '' }).STATE_FILE).toBe('state.json');
         expect(loadConfig({ ...valid, STATE_FILE: '  ' }).STATE_FILE).toBe('state.json');
         expect(loadConfig({ ...valid, STATE_FILE: 'data/state.json' }).STATE_FILE).toBe('data/state.json');
+    });
+
+    it('SETTINGS_FILE が空なら既定値にする', () => {
+        expect(loadConfig({ ...valid, SETTINGS_FILE: '' }).SETTINGS_FILE).toBe('settings.json');
+        expect(loadConfig({ ...valid, SETTINGS_FILE: '  ' }).SETTINGS_FILE).toBe('settings.json');
+        expect(loadConfig({ ...valid, SETTINGS_FILE: 'data/settings.json' }).SETTINGS_FILE).toBe('data/settings.json');
     });
 
     it('真偽値は true のときだけ真になる', () => {
