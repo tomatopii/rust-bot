@@ -5,13 +5,15 @@ import { createLogger, describeError } from './logger.js';
 import { createMessagePump } from './messagePump.js';
 import { relayNotification } from './relay.js';
 import { loadState, saveState } from './state.js';
+import { createEventHub } from './web/eventHub.js';
 
 // 終了時は処理中の通知を待ってから記録を保存するが、Discord が応答しない場合に備えて待ち時間を区切る。
 // 投稿 1 件の最悪ケース（15 秒のタイムアウト × 3 回 + 待ち時間）より長くしておく
 const EXIT_TIMEOUT_MS = 60000;
 
 async function main(): Promise<void> {
-    const log = createLogger();
+    const hub = createEventHub();
+    const log = createLogger(hub);
     const config = loadConfig();
     const initialState = await loadState(config.STATE_FILE, log);
     const forwards = ['アラーム', ...(config.FORWARD_DEATH ? ['死亡'] : []), ...(config.FORWARD_TEAM_LOGIN ? ['ログイン'] : [])];
@@ -36,6 +38,7 @@ async function main(): Promise<void> {
         persistentIds: initialState.persistentIds,
         log,
         onMessage: pump.onMessage,
+        onStatus: (fcm) => void hub.publish({ type: 'status', fcm }),
     });
 
     let exiting = false;

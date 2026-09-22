@@ -1,5 +1,6 @@
 import PushReceiverClient from '@liamcottle/push-receiver/src/client.js';
 import { describeError, type Logger } from '../logger.js';
+import type { FcmStatus } from '../web/eventHub.js';
 
 const RECONNECT_DELAY_MS = 15000;
 
@@ -13,6 +14,8 @@ export type FcmListenerOptions = Readonly<{
     persistentIds: readonly string[];
     log: Logger;
     onMessage: (message: FcmMessage) => void;
+    /** 接続状態が変わったときに呼ばれる（Web 画面の表示用） */
+    onStatus?: (status: FcmStatus) => void;
 }>;
 
 export type FcmListener = Readonly<{ stop(): void }>;
@@ -33,21 +36,29 @@ export function startFcmListener(options: FcmListenerOptions): FcmListener {
     let stopped = false;
     let retryTimer: NodeJS.Timeout | undefined;
 
-    client.on('connect', () => options.log.info('FCM に接続しました。通知を待っています'));
+    client.on('connect', () => {
+        options.log.info('FCM に接続しました。通知を待っています');
+        options.onStatus?.('connected');
+    });
     client.on('disconnect', () => {
-        if (!stopped) options.log.warn('FCM から切断されました。再接続します');
+        if (stopped) return;
+        options.log.warn('FCM から切断されました。再接続します');
+        options.onStatus?.('disconnected');
     });
     client.on('ON_DATA_RECEIVED', (data: unknown) => options.onMessage(toMessage(data)));
 
     const rawConnect = client.connect.bind(client);
-    const connect = (): Promise<void> =>
-        rawConnect().catch((error: unknown) => {
+    const connect = (): Promise<void> => {
+        options.onStatus?.('connecting');
+        return rawConnect().catch((error: unknown) => {
             if (stopped) return;
             options.log.error(
                 `FCM への接続に失敗しました: ${describeError(error)}（${RECONNECT_DELAY_MS / 1000} 秒後に再試行します）`,
             );
+            options.onStatus?.('disconnected');
             retryTimer = setTimeout(() => void connect(), RECONNECT_DELAY_MS);
         });
+    };
     // ライブラリ内部の再接続（切断後の _retry）は this.connect を呼び直すが、その失敗を誰も受け取らず
     // unhandledRejection でプロセスが落ちるので、失敗を拾うラッパに差し替えておく
     client.connect = connect;
